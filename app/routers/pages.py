@@ -23,6 +23,34 @@ def _db(request: Request):
     return request.app.state.db
 
 
+def _build_filters(
+    country: str | None,
+    sector: str | None,
+    sukuk_type: str | None,
+    ccy: str | None,
+    profit_type: str | None,
+    ytm_min: str | None,
+    ytm_max: str | None,
+    search: str | None,
+) -> dict:
+    """Build a filters dict, ignoring empty strings."""
+    filters = {}
+    for key, val in [
+        ("country", country), ("sector", sector), ("sukuk_type", sukuk_type),
+        ("ccy", ccy), ("profit_type", profit_type), ("search", search),
+    ]:
+        if val and val.strip():
+            filters[key] = val.strip()
+    # Numeric: only set if non-empty and parseable
+    for key, val in [("ytm_min", ytm_min), ("ytm_max", ytm_max)]:
+        if val and val.strip():
+            try:
+                filters[key] = float(val.strip())
+            except ValueError:
+                pass
+    return filters
+
+
 @router.get("/", response_class=HTMLResponse)
 def index(
     request: Request,
@@ -33,25 +61,18 @@ def index(
     sukuk_type: str | None = Query(None),
     ccy: str | None = Query(None),
     profit_type: str | None = Query(None),
-    ytm_min: float | None = Query(None),
-    ytm_max: float | None = Query(None),
+    ytm_min: str | None = Query(None),
+    ytm_max: str | None = Query(None),
     search: str | None = Query(None),
     document_date: date | None = Query(None),
 ):
     """Main screener table page."""
     conn = _db(request)
 
-    filters = {}
-    for key in ("country", "sector", "sukuk_type", "ccy", "profit_type"):
-        val = locals().get(key)
-        if val:
-            filters[key] = val
-    if ytm_min is not None:
-        filters["ytm_min"] = ytm_min
-    if ytm_max is not None:
-        filters["ytm_max"] = ytm_max
-    if search:
-        filters["search"] = search
+    filters = _build_filters(
+        country, sector, sukuk_type, ccy, profit_type,
+        ytm_min, ytm_max, search,
+    )
 
     rows = get_sukuk_list(
         conn, document_date=document_date,
@@ -105,24 +126,17 @@ def htmx_table(
     sukuk_type: str | None = Query(None),
     ccy: str | None = Query(None),
     profit_type: str | None = Query(None),
-    ytm_min: float | None = Query(None),
-    ytm_max: float | None = Query(None),
+    ytm_min: str | None = Query(None),
+    ytm_max: str | None = Query(None),
     search: str | None = Query(None),
     document_date: date | None = Query(None),
 ):
     """HTMX partial: just the table body rows for live filtering."""
     conn = _db(request)
-    filters = {}
-    for key in ("country", "sector", "sukuk_type", "ccy", "profit_type"):
-        val = locals().get(key)
-        if val:
-            filters[key] = val
-    if ytm_min is not None:
-        filters["ytm_min"] = ytm_min
-    if ytm_max is not None:
-        filters["ytm_max"] = ytm_max
-    if search:
-        filters["search"] = search
+    filters = _build_filters(
+        country, sector, sukuk_type, ccy, profit_type,
+        ytm_min, ytm_max, search,
+    )
 
     rows = get_sukuk_list(
         conn, document_date=document_date,
