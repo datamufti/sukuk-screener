@@ -3,13 +3,12 @@ name: CI/CD — Test & Deploy
 on:
   push:
     branches: [main]
-  workflow_dispatch:         # Allow manual trigger from GitHub UI
+  workflow_dispatch:
 
 env:
-  DEPLOY_DIR: ~/webapps/sukuk-screener
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  # ─── Job 1: Run tests ────────────────────────────────────
   test:
     name: Run tests
     runs-on: ubuntu-latest
@@ -27,10 +26,9 @@ jobs:
       - name: Run pytest
         run: python -m pytest tests/ -v --tb=short
 
-  # ─── Job 2: Deploy to homelab ────────────────────────────
   deploy:
     name: Deploy to homelab
-    needs: test            # Only deploy if tests pass
+    needs: test
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
 
@@ -41,8 +39,7 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
-          script_stop: true
+          port: ${{ secrets.SERVER_PORT }}
           script: |
             cd ~/webapps/sukuk-screener
             ./deploy.sh
