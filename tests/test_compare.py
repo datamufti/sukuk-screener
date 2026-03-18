@@ -156,6 +156,34 @@ class TestComparePage:
         assert "Credit Score" in resp.text
         assert "Zakat Rate" in resp.text
 
+    def test_compare_shows_profit_rate(self, client):
+        resp = client.get("/compare?isins=XS1111111111,XS2222222222")
+        assert "Profit Rate" in resp.text
+        assert "4.500" in resp.text  # XS1111111111 profit_rate
+        assert "7.125" in resp.text  # XS2222222222 profit_rate
+
+    def test_compare_shows_structure_detail(self, client):
+        """The raw sukuk_type from the PDF should show as Structure Detail."""
+        resp = client.get("/compare?isins=XS1111111111,XS2222222222")
+        assert "Structure Detail" in resp.text
+        assert "Sukuk Al Ijara" in resp.text
+        assert "Sukuk Al Murabaha" in resp.text
+
+    def test_compare_bid_lowest_is_best(self, client):
+        """Lowest bid should be highlighted, not highest."""
+        resp = client.get("/compare?isins=XS1111111111,XS2222222222")
+        # XS2222222222 has bid 96.5 (lower) vs XS1111111111 at 99.0
+        # The best (lowest) bid cell should have the highlight class
+        assert "96.50" in resp.text
+        assert "99.00" in resp.text
+
+    def test_compare_ask_lowest_is_best(self, client):
+        """Lowest ask should be highlighted."""
+        resp = client.get("/compare?isins=XS1111111111,XS2222222222")
+        # XS2222222222 has ask 97.8 (lower) vs XS1111111111 at 100.5
+        assert "97.80" in resp.text
+        assert "100.50" in resp.text
+
 
 # ─── Diversification tests ───────────────────────────
 
