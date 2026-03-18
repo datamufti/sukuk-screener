@@ -57,26 +57,23 @@ def _parse_pdf_metadata_date(raw: str) -> date | None:
 
 
 def extract_document_date(pdf_bytes: bytes) -> date:
-    """Extract the document date from PDF metadata or first-page text.
+    """Determine the document date for this PDF.
 
-    Primary: reads CreationDate / ModDate from PDF metadata.
-    Fallback: looks for 'Date: DD Month YYYY' patterns in page text.
+    The Emirates Islamic sukuk PDF does NOT reliably update its metadata
+    dates (CreationDate / ModDate may be stale for days). So the primary
+    strategy is:
+      1. Look for an explicit 'Date:' label in the page text.
+      2. Fall back to the current UAE business day (the PDF is published
+         fresh each business day, so the fetch date *is* the data date).
+
+    PDF metadata is intentionally NOT used — it proved unreliable.
     """
+    from app.services.scheduler import last_business_day
+
     with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        metadata = pdf.metadata or {}
-
-        # --- Primary: PDF metadata ---
-        for key in ("CreationDate", "ModDate"):
-            raw = metadata.get(key)
-            if raw:
-                parsed = _parse_pdf_metadata_date(str(raw))
-                if parsed:
-                    logger.info(f"Extracted date from PDF metadata '{key}': {parsed}")
-                    return parsed
-
-        # --- Fallback: text patterns ---
         first_page_text = pdf.pages[0].extract_text() or ""
 
+    # --- Try explicit text patterns first ---
     # Pattern 1: "Date: 17 March 2026" or "Date : 17 March 2026"
     m = re.search(
         r"Date\s*:\s*(\d{1,2}\s+\w+\s+\d{4})", first_page_text, re.IGNORECASE
@@ -84,7 +81,9 @@ def extract_document_date(pdf_bytes: bytes) -> date:
     if m:
         for fmt in ("%d %B %Y", "%d %b %Y"):
             try:
-                return datetime.strptime(m.group(1).strip(), fmt).date()
+                parsed = datetime.strptime(m.group(1).strip(), fmt).date()
+                logger.info(f"Extracted date from PDF text: {parsed}")
+                return parsed
             except ValueError:
                 continue
 
@@ -93,12 +92,16 @@ def extract_document_date(pdf_bytes: bytes) -> date:
         r"Date\s*:\s*(\d{1,2}-\w{3}-\d{4})", first_page_text, re.IGNORECASE
     )
     if m:
-        return datetime.strptime(m.group(1).strip(), "%d-%b-%Y").date()
+        parsed = datetime.strptime(m.group(1).strip(), "%d-%b-%Y").date()
+        logger.info(f"Extracted date from PDF text: {parsed}")
+        return parsed
 
-    raise ValueError(
-        f"Could not extract document date from PDF. "
-        f"Metadata: {metadata}; First 500 chars: {first_page_text[:500]}"
+    # --- Fallback: current UAE business day ---
+    today_biz = last_business_day()
+    logger.info(
+        f"No date found in PDF text; using current UAE business day: {today_biz}"
     )
+    return today_biz
 
 
 def _safe_float(val: Any) -> float | None:

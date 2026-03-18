@@ -1,6 +1,8 @@
 """Tests for PDF parser: helper functions and row parsing."""
 import pytest
+import io
 from datetime import date
+from unittest.mock import patch
 from app.services.pdf_parser import (
     _safe_float,
     _safe_int,
@@ -8,6 +10,7 @@ from app.services.pdf_parser import (
     _clean_string,
     _parse_row,
     _parse_pdf_metadata_date,
+    extract_document_date,
 )
 
 
@@ -174,3 +177,56 @@ class TestParseRow:
         assert result is not None
         assert result["maturity"] is None
         assert result["maturity_type"] == "PERP/CALL"
+
+
+class TestExtractDocumentDate:
+    """Test extract_document_date with synthetic PDFs."""
+
+    def _make_pdf_bytes(self, text: str) -> bytes:
+        """Create a minimal 1-page PDF containing the given text."""
+        # Use reportlab-free approach: build raw PDF bytes
+        # We'll mock pdfplumber instead for simplicity
+        return b"dummy"
+
+    @patch("app.services.pdf_parser.pdfplumber")
+    def test_extracts_date_from_text(self, mock_pdfplumber):
+        """When the PDF text contains 'Date: 18 March 2026', use it."""
+        mock_pdf = mock_pdfplumber.open.return_value.__enter__.return_value
+        mock_page = mock_pdf.pages.__getitem__.return_value
+        mock_page.extract_text.return_value = "Sukuk Prices\nDate: 18 March 2026\nISIN ..."
+
+        result = extract_document_date(b"fake-pdf")
+        assert result == date(2026, 3, 18)
+
+    @patch("app.services.pdf_parser.pdfplumber")
+    def test_extracts_date_short_month(self, mock_pdfplumber):
+        """When the PDF text contains 'Date: 18-Mar-2026', use it."""
+        mock_pdf = mock_pdfplumber.open.return_value.__enter__.return_value
+        mock_page = mock_pdf.pages.__getitem__.return_value
+        mock_page.extract_text.return_value = "Date: 18-Mar-2026"
+
+        result = extract_document_date(b"fake-pdf")
+        assert result == date(2026, 3, 18)
+
+    @patch("app.services.scheduler.last_business_day", return_value=date(2026, 3, 18))
+    @patch("app.services.pdf_parser.pdfplumber")
+    def test_falls_back_to_business_day(self, mock_pdfplumber, mock_biz_day):
+        """When no date in text, fall back to current UAE business day."""
+        mock_pdf = mock_pdfplumber.open.return_value.__enter__.return_value
+        mock_page = mock_pdf.pages.__getitem__.return_value
+        mock_page.extract_text.return_value = "Sukuk Indicative Prices\nISIN Issuer ..."
+
+        result = extract_document_date(b"fake-pdf")
+        assert result == date(2026, 3, 18)
+        mock_biz_day.assert_called_once()
+
+    @patch("app.services.scheduler.last_business_day", return_value=date(2026, 3, 15))
+    @patch("app.services.pdf_parser.pdfplumber")
+    def test_fallback_on_sunday_uses_last_business_day(self, mock_pdfplumber, mock_biz_day):
+        """If fetched on a Sunday, should use Friday (last business day)."""
+        mock_pdf = mock_pdfplumber.open.return_value.__enter__.return_value
+        mock_page = mock_pdf.pages.__getitem__.return_value
+        mock_page.extract_text.return_value = "No date here"
+
+        result = extract_document_date(b"fake-pdf")
+        assert result == date(2026, 3, 15)  # Friday

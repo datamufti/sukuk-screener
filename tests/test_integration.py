@@ -45,8 +45,11 @@ class TestRealPDFParsing:
     def test_document_date_extracted(self, real_pdf_bytes):
         doc_date = extract_document_date(real_pdf_bytes)
         assert isinstance(doc_date, date)
-        # Should be a recent date (within last 30 days)
-        assert (date.today() - doc_date).days < 30
+        # Should be today or within the last 3 business days
+        assert (date.today() - doc_date).days <= 4
+        # Must be a UAE business day (not a weekend/holiday)
+        from app.services.scheduler import is_uae_business_day
+        assert is_uae_business_day(doc_date)
 
     def test_rows_parsed(self, real_pdf_bytes):
         rows = parse_pdf(real_pdf_bytes)
