@@ -1,0 +1,48 @@
+name: CI/CD — Test & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:         # Allow manual trigger from GitHub UI
+
+env:
+  DEPLOY_DIR: ~/webapps/sukuk-screener
+
+jobs:
+  # ─── Job 1: Run tests ────────────────────────────────────
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pytest
+        run: python -m pytest tests/ -v --tb=short
+
+  # ─── Job 2: Deploy to homelab ────────────────────────────
+  deploy:
+    name: Deploy to homelab
+    needs: test            # Only deploy if tests pass
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script_stop: true
+          script: |
+            cd ~/webapps/sukuk-screener
+            ./deploy.sh

@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  sukuk-screener:
+    build: .
+    container_name: sukuk-screener
+    expose:
+      - "8000"
+    volumes:
+      - sukuk-data:/app/data
+    environment:
+      - DATA_DIR=/app/data
+    restart: unless-stopped
+    networks:
+      - web
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    depends_on:
+      - sukuk-screener
+    networks:
+      - web
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+volumes:
+  sukuk-data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  web:
