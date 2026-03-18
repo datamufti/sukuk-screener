@@ -75,6 +75,29 @@ python -m pytest tests/ -v
 
 On first launch the database is empty. Click the **Refresh Data** button in the top-right corner to fetch the latest Emirates Islamic sukuk PDF, parse it, and populate the screener. The data is stored in DuckDB under the `data/` directory.
 
+## Production Deployment
+
+The app is designed to run on a homelab server behind Caddy as a reverse proxy, with CI/CD via GitHub Actions.
+
+```bash
+# On the server
+cd ~/webapps/sukuk-screener
+./deploy.sh
+```
+
+This builds the Docker image, starts both the app and Caddy, and verifies the health check passes. Caddy handles HTTP on port 80 (HTTPS with auto-certs when a domain is configured).
+
+For full server setup instructions (Docker install, GitHub Actions secrets, domain configuration), see [docs/server-setup.md](docs/server-setup.md).
+
+### CI/CD
+
+Every push to `main` triggers:
+1. Run all tests on GitHub-hosted runners
+2. SSH into the homelab server and run `deploy.sh`
+3. Health check verification
+
+Required GitHub secrets: `SERVER_HOST`, `SERVER_USER`, `SERVER_SSH_KEY`, `SERVER_PORT`.
+
 ## Project Structure
 
 ```
@@ -94,9 +117,14 @@ sukuk-screener/
 │   │   └── ingest.py       # Orchestrates download → parse → enrich → store
 │   └── templates/          # Jinja2 templates (HTMX-powered)
 ├── tests/                  # pytest suite (200+ tests)
-├── run.sh                  # Local launcher (no Docker)
-├── Dockerfile
-├── docker-compose.yml
+├── docs/server-setup.md    # Server setup & deployment guide
+├── .github/workflows/      # CI/CD pipeline
+├── run.sh                  # Local dev launcher (no Docker)
+├── deploy.sh               # Production deploy script
+├── Caddyfile               # Caddy reverse proxy config
+├── Dockerfile              # Multi-stage, non-root production image
+├── docker-compose.yml      # Dev compose
+├── docker-compose.prod.yml # Production compose (app + Caddy)
 └── requirements.txt
 ```
 
