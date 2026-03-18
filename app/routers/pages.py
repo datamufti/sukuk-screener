@@ -13,6 +13,7 @@ from app.services.db_ops import (
     get_filter_options,
     get_latest_date,
     get_available_dates,
+    list_presets,
 )
 
 router = APIRouter(tags=["pages"])
@@ -32,6 +33,9 @@ def _build_filters(
     ytm_min: str | None,
     ytm_max: str | None,
     search: str | None,
+    maturity_after: str | None = None,
+    maturity_before: str | None = None,
+    rating_min: str | None = None,
 ) -> dict:
     """Build a filters dict, ignoring empty strings."""
     filters = {}
@@ -42,10 +46,17 @@ def _build_filters(
         if val and val.strip():
             filters[key] = val.strip()
     # Numeric: only set if non-empty and parseable
-    for key, val in [("ytm_min", ytm_min), ("ytm_max", ytm_max)]:
+    for key, val in [("ytm_min", ytm_min), ("ytm_max", ytm_max), ("rating_min", rating_min)]:
         if val and val.strip():
             try:
                 filters[key] = float(val.strip())
+            except ValueError:
+                pass
+    # Date filters: only set if non-empty and parseable
+    for key, val in [("maturity_after", maturity_after), ("maturity_before", maturity_before)]:
+        if val and val.strip():
+            try:
+                filters[key] = date.fromisoformat(val.strip())
             except ValueError:
                 pass
     return filters
@@ -65,6 +76,9 @@ def index(
     ytm_max: str | None = Query(None),
     search: str | None = Query(None),
     document_date: date | None = Query(None),
+    maturity_after: str | None = Query(None),
+    maturity_before: str | None = Query(None),
+    rating_min: str | None = Query(None),
 ):
     """Main screener table page."""
     conn = _db(request)
@@ -72,15 +86,18 @@ def index(
     filters = _build_filters(
         country, sector, sukuk_type, ccy, profit_type,
         ytm_min, ytm_max, search,
+        maturity_after, maturity_before, rating_min,
     )
 
     rows = get_sukuk_list(
         conn, document_date=document_date,
         sort_by=sort_by, sort_dir=sort_dir, filters=filters,
     )
+    total_count = len(get_sukuk_list(conn, document_date=document_date))
     filter_opts = get_filter_options(conn)
     latest = get_latest_date(conn)
     avail_dates = get_available_dates(conn)
+    presets = list_presets(conn)
 
     # Compute next sort direction toggle
     next_dir = "ASC" if sort_dir == "DESC" else "DESC"
@@ -89,6 +106,7 @@ def index(
         "request": request,
         "rows": rows,
         "count": len(rows),
+        "total_count": total_count,
         "filter_opts": filter_opts,
         "latest_date": latest,
         "available_dates": avail_dates,
@@ -98,6 +116,7 @@ def index(
         "filters": filters,
         "search": search or "",
         "document_date": document_date,
+        "presets": presets,
     })
 
 
@@ -130,25 +149,122 @@ def htmx_table(
     ytm_max: str | None = Query(None),
     search: str | None = Query(None),
     document_date: date | None = Query(None),
+    maturity_after: str | None = Query(None),
+    maturity_before: str | None = Query(None),
+    rating_min: str | None = Query(None),
 ):
     """HTMX partial: just the table body rows for live filtering."""
     conn = _db(request)
     filters = _build_filters(
         country, sector, sukuk_type, ccy, profit_type,
         ytm_min, ytm_max, search,
+        maturity_after, maturity_before, rating_min,
     )
 
     rows = get_sukuk_list(
         conn, document_date=document_date,
         sort_by=sort_by, sort_dir=sort_dir, filters=filters,
     )
+    total_count = len(get_sukuk_list(conn, document_date=document_date))
     next_dir = "ASC" if sort_dir == "DESC" else "DESC"
 
     return templates.TemplateResponse("_table_rows.html", {
         "request": request,
         "rows": rows,
         "count": len(rows),
+        "total_count": total_count,
         "sort_by": sort_by,
         "sort_dir": sort_dir,
         "next_dir": next_dir,
+    })
+
+
+def _compute_diversification(sukuk_list: list[dict]) -> dict:
+    """Compute concentration analysis for a portfolio."""
+    if not sukuk_list:
+        return {"country": {}, "sector": {}, "rating_band": {}, "warnings": []}
+
+    total = len(sukuk_list)
+
+    # Country concentration
+    country_counts: dict[str, int] = {}
+    for s in sukuk_list:
+        c = s.get("country_risk") or "Unknown"
+        country_counts[c] = country_counts.get(c, 0) + 1
+    country_pcts = {k: round(v / total * 100, 1) for k, v in country_counts.items()}
+
+    # Sector concentration
+    sector_counts: dict[str, int] = {}
+    for s in sukuk_list:
+        sec = s.get("sector") or "Unknown"
+        sector_counts[sec] = sector_counts.get(sec, 0) + 1
+    sector_pcts = {k: round(v / total * 100, 1) for k, v in sector_counts.items()}
+
+    # Rating band concentration
+    def _rating_band(score):
+        if score is None:
+            return "Unrated"
+        if score >= 18:
+            return "AAA-AA"
+        if score >= 15:
+            return "A"
+        if score >= 12:
+            return "BBB"
+        if score >= 6:
+            return "BB-B"
+        return "Below B"
+
+    band_counts: dict[str, int] = {}
+    for s in sukuk_list:
+        band = _rating_band(s.get("credit_risk_score"))
+        band_counts[band] = band_counts.get(band, 0) + 1
+    band_pcts = {k: round(v / total * 100, 1) for k, v in band_counts.items()}
+
+    # Warnings
+    warnings = []
+    for label, pcts in [("country", country_pcts), ("sector", sector_pcts), ("rating_band", band_pcts)]:
+        for cat, pct in pcts.items():
+            if pct > 50:
+                warnings.append({"category": label, "value": cat, "pct": pct, "level": "warning"})
+
+    # Overall diversification status
+    max_pct = max(
+        (max(country_pcts.values()) if country_pcts else 0),
+        (max(sector_pcts.values()) if sector_pcts else 0),
+        (max(band_pcts.values()) if band_pcts else 0),
+    )
+    overall = "good" if max_pct <= 40 else ("warning" if max_pct > 50 else "moderate")
+
+    return {
+        "country": country_pcts,
+        "sector": sector_pcts,
+        "rating_band": band_pcts,
+        "warnings": warnings,
+        "overall": overall,
+    }
+
+
+@router.get("/compare", response_class=HTMLResponse)
+def compare(
+    request: Request,
+    isins: str = Query(""),
+):
+    """Comparison page for selected sukuk."""
+    conn = _db(request)
+    latest = get_latest_date(conn)
+    isin_list = [i.strip() for i in isins.split(",") if i.strip()][:5]
+
+    sukuk_list = []
+    for isin in isin_list:
+        detail_data = get_sukuk_detail(conn, isin)
+        if detail_data:
+            sukuk_list.append(detail_data)
+
+    diversification = _compute_diversification(sukuk_list)
+
+    return templates.TemplateResponse("compare.html", {
+        "request": request,
+        "sukuk_list": sukuk_list,
+        "diversification": diversification,
+        "latest_date": latest,
     })
