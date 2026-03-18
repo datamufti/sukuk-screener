@@ -1,41 +1,18 @@
-# Sukuk Screener — Caddy reverse proxy
-#
-# LAN-only mode: serves on port 80 (HTTP), no TLS.
-# When you're ready for a public domain, comment out the :80 block
-# and uncomment the domain block below.
+sukuk.datamufti.com {
+	# Basic auth — username: talal
+	basicauth {
+		talal $2b$12$Cd.L0hApVATpAi7iRBWZL.DcsW5e3rrnml/sL8r4UslVPHRNh7muK
+	}
 
-:80 {
 	reverse_proxy sukuk-screener:8000
 
-	# Optional: security headers
 	header {
 		X-Content-Type-Options    nosniff
 		X-Frame-Options           DENY
 		Referrer-Policy           strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		-Server
 	}
 
-	# Gzip compression
 	encode gzip
 }
-
-# ─── Public domain (uncomment when ready) ─────────────────────
-# Prerequisites:
-#   1. Point DNS for your domain to your home WAN IP
-#   2. Forward ports 80 + 443 on OPNsense to this server's LAN IP
-#   3. Replace "sukuk.example.com" with your actual domain
-#   4. Comment out the :80 block above
-#
-# sukuk.example.com {
-# 	reverse_proxy sukuk-screener:8000
-#
-# 	header {
-# 		X-Content-Type-Options    nosniff
-# 		X-Frame-Options           DENY
-# 		Referrer-Policy           strict-origin-when-cross-origin
-# 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-# 		-Server
-# 	}
-#
-# 	encode gzip
-# }
