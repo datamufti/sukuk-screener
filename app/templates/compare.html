@@ -38,9 +38,11 @@
             <tbody class="divide-y divide-gray-100">
                 {% set metrics = [
                     ("Issuer", "issuer", "text", none),
+                    ("Profit Rate %", "profit_rate", "float3", none),
+                    ("Profit Type", "profit_type", "text", none),
                     ("YTM %", "ytm", "float2", "max"),
                     ("Zakat-Adj YTM %", "zakat_adjusted_ytm", "float2", "max"),
-                    ("Bid", "bid_price", "float2", "max"),
+                    ("Bid", "bid_price", "float2", "min"),
                     ("Ask", "ask_price", "float2", "min"),
                     ("Maturity", "maturity", "date", none),
                     ("Currency", "ccy", "text", none),
@@ -49,6 +51,7 @@
                     ("Country", "country_risk", "text", none),
                     ("Sector", "sector", "text", none),
                     ("Sukuk Type", "sukuk_type_detected", "text", none),
+                    ("Structure Detail", "sukuk_type", "text", none),
                     ("Zakat Rate %", "zakat_rate", "pct", "min"),
                     ("Risk-Adj Metric", "risk_adjusted_metric", "float2", "max"),
                 ] %}
@@ -76,6 +79,7 @@
                         {% set is_best = (best_dir and val is not none and ns.best_val is not none and val == ns.best_val and sukuk_list|length > 1) %}
                         <td class="px-4 py-2 text-center font-mono tabular-nums {{ 'bg-brand-50 text-brand-800 font-semibold' if is_best else '' }}">
                             {% if val is none %}—
+                            {% elif fmt == "float3" %}{{ "%.3f"|format(val) }}
                             {% elif fmt == "float2" %}{{ "%.2f"|format(val) }}
                             {% elif fmt == "float1" %}{{ "%.1f"|format(val) }}
                             {% elif fmt == "pct" %}{{ "%.2f"|format(val * 100) }}
