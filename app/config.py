@@ -8,7 +8,7 @@ DB_PATH = DATA_DIR / "sukuk.duckdb"
 
 PDF_URL = (
     "https://www.emiratesislamic.ae/-/media/ei/pdfs/general/"
-    "sukuk-indicative-quotes/sukuk_indicative_quotes.pdf"
+    "sukuk-indicative-quotes/sukuk_indicative_quotes.csv"
 )
 
 # Scheduler: daily at 10:00 AM UAE (UTC+4) = 06:00 UTC
