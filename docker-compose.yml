@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  sukuk-screener:
+    build: .
+    container_name: sukuk-screener
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist DuckDB data across container restarts
+      - sukuk-data:/app/data
+    environment:
+      - DATA_DIR=/app/data
+    restart: unless-stopped
+
+volumes:
+  sukuk-data:

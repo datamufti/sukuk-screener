@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}{{ sukuk.issuer if sukuk else isin }} — Sukuk Screener{% endblock %}
+
+{% block head %}
+<!-- TradingView Lightweight Charts -->
+<script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <a href="/" class="text-sm text-brand-700 hover:underline">← Back to screener</a>
+
+    {% if sukuk %}
+    <!-- Header card -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div>
+                <h1 class="text-xl font-bold text-gray-900">{{ sukuk.issuer or isin }}</h1>
+                <p class="text-sm text-gray-500 font-mono mt-1">{{ sukuk.isin }}</p>
+            </div>
+            <div class="flex gap-6 text-center">
+                <div>
+                    <div class="text-2xl font-bold text-brand-700">{{ "%.2f"|format(sukuk.ytm) if sukuk.ytm is not none else "—" }}%</div>
+                    <div class="text-xs text-gray-500">YTM</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold">{{ "%.2f"|format(sukuk.zakat_adjusted_ytm) if sukuk.zakat_adjusted_ytm is not none else "—" }}%</div>
+                    <div class="text-xs text-gray-500">Zakat-Adjusted</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold">{{ "%.2f"|format(sukuk.bid_price) if sukuk.bid_price is not none else "—" }}</div>
+                    <div class="text-xs text-gray-500">Bid</div>
+                </div>
+                <div>
+                    <div class="text-2xl font-bold">{{ "%.2f"|format(sukuk.ask_price) if sukuk.ask_price is not none else "—" }}</div>
+                    <div class="text-xs text-gray-500">Ask</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% set fields = [
+            ("Profit Rate", sukuk.profit_rate, "%.3f"),
+            ("Profit Type", sukuk.profit_type, None),
+            ("Maturity", sukuk.maturity if sukuk.maturity else "Perpetual", None),
+            ("Maturity Type", sukuk.maturity_type, None),
+            ("Currency", sukuk.ccy, None),
+            ("S&P Rating", sukuk.sp_rating, None),
+            ("Moody's Rating", sukuk.moodys_rating, None),
+            ("Fitch Rating", sukuk.fitch_rating, None),
+            ("Min Investment", sukuk.min_investment, "{:,}"),
+            ("Country Risk", sukuk.country_risk, None),
+            ("Sector", sukuk.sector, None),
+            ("Sukuk Type (PDF)", sukuk.sukuk_type, None),
+            ("Sukuk Type (Detected)", sukuk.sukuk_type_detected, None),
+            ("Zakat Rate", sukuk.zakat_rate, "%.2f%%"),
+            ("Credit Risk Score", sukuk.credit_risk_score, "%.1f"),
+            ("Sector Risk Score", sukuk.sector_risk_score, "%.1f"),
+            ("Risk-Adjusted Metric", sukuk.risk_adjusted_metric, "%.3f"),
+        ] %}
+        {% for label, value, fmt in fields %}
+        <div class="bg-white rounded-lg shadow px-4 py-3">
+            <div class="text-xs text-gray-500">{{ label }}</div>
+            <div class="text-sm font-medium mt-0.5">
+                {% if value is none or value == "" %}
+                    <span class="text-gray-300">—</span>
+                {% elif fmt and "%" in fmt and "f" in fmt %}
+                    {{ fmt|format(value * 100 if value < 1 else value) }}
+                {% elif fmt and "," in fmt %}
+                    {{ "{:,}".format(value|int) }}
+                {% elif fmt %}
+                    {{ fmt|format(value) }}
+                {% else %}
+                    {{ value }}
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Price chart placeholder -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-sm font-semibold text-gray-700 mb-3">Price History</h2>
+        {% if history and history|length > 1 %}
+        <div id="chart" style="height: 300px;"></div>
+        {% else %}
+        <p class="text-sm text-gray-400">Not enough historical data yet. Chart will appear after multiple days of data collection.</p>
+        {% endif %}
+    </div>
+
+    {% else %}
+    <div class="bg-white rounded-lg shadow p-12 text-center">
+        <p class="text-gray-500">Sukuk <span class="font-mono">{{ isin }}</span> not found.</p>
+        <a href="/" class="text-brand-600 hover:underline text-sm mt-2 inline-block">Back to screener</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if history and history|length > 1 %}
+<script>
+(function() {
+    const data = {{ history | tojson }};
+    const container = document.getElementById('chart');
+    const chart = LightweightCharts.createChart(container, {
+        layout: { background: { type: 'solid', color: '#fff' }, textColor: '#333' },
+        grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+        width: container.clientWidth,
+        height: 300,
+        timeScale: { borderColor: '#e5e7eb' },
+    });
+
+    const bidSeries = chart.addLineSeries({ color: '#16a34a', lineWidth: 2, title: 'Bid' });
+    const askSeries = chart.addLineSeries({ color: '#dc2626', lineWidth: 2, title: 'Ask' });
+
+    bidSeries.setData(data.filter(d => d.bid_price != null).map(d => ({
+        time: d.document_date, value: d.bid_price
+    })));
+    askSeries.setData(data.filter(d => d.ask_price != null).map(d => ({
+        time: d.document_date, value: d.ask_price
+    })));
+
+    chart.timeScale().fitContent();
+    window.addEventListener('resize', () => chart.applyOptions({ width: container.clientWidth }));
+})();
+</script>
+{% endif %}
+{% endblock %}

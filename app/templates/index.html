@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Sukuk Screener — {{ count }} sukuk{% endblock %}
+
+{% block content %}
+<div class="space-y-4">
+    <!-- Filters bar -->
+    <form hx-get="/htmx/table" hx-target="#table-body" hx-swap="innerHTML"
+          hx-trigger="change, keyup changed delay:300ms from:#search-input"
+          class="bg-white rounded-lg shadow p-4">
+        <div class="flex flex-wrap gap-3 items-end">
+            <!-- Search -->
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-xs font-medium text-gray-500 mb-1">Search</label>
+                <input id="search-input" type="text" name="search" value="{{ search }}"
+                       placeholder="ISIN or Issuer…"
+                       class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm focus:ring-brand-500 focus:border-brand-500">
+            </div>
+
+            <!-- Country -->
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Country</label>
+                <select name="country" class="border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="">All</option>
+                    {% for c in filter_opts.countries %}
+                    <option value="{{ c }}" {% if filters.get('country') == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Sector -->
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Sector</label>
+                <select name="sector" class="border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="">All</option>
+                    {% for s in filter_opts.sectors %}
+                    <option value="{{ s }}" {% if filters.get('sector') == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Currency -->
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Currency</label>
+                <select name="ccy" class="border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="">All</option>
+                    {% for c in filter_opts.currencies %}
+                    <option value="{{ c }}" {% if filters.get('ccy') == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Sukuk type -->
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Type</label>
+                <select name="sukuk_type" class="border border-gray-300 rounded px-2 py-1.5 text-sm">
+                    <option value="">All</option>
+                    {% for t in filter_opts.sukuk_types %}
+                    <option value="{{ t }}" {% if filters.get('sukuk_type') == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- YTM range -->
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">YTM Min %</label>
+                <input type="number" name="ytm_min" step="0.1"
+                       value="{{ filters.get('ytm_min', '') }}"
+                       class="w-20 border border-gray-300 rounded px-2 py-1.5 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">YTM Max %</label>
+                <input type="number" name="ytm_max" step="0.1"
+                       value="{{ filters.get('ytm_max', '') }}"
+                       class="w-20 border border-gray-300 rounded px-2 py-1.5 text-sm">
+            </div>
+
+            <!-- Hidden sort state -->
+            <input type="hidden" name="sort_by" value="{{ sort_by }}">
+            <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
+
+            <button type="submit"
+                    class="bg-brand-600 text-white px-4 py-1.5 rounded text-sm hover:bg-brand-700 transition">
+                Filter
+            </button>
+            <a href="/" class="text-sm text-gray-500 hover:text-gray-700 underline">Reset</a>
+        </div>
+    </form>
+
+    <!-- Count -->
+    <div class="flex items-center justify-between">
+        <p class="text-sm text-gray-600"><span class="font-semibold">{{ count }}</span> sukuk</p>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-lg shadow overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
+                <tr>
+                    {% set cols = [
+                        ("isin", "ISIN"),
+                        ("issuer", "Issuer"),
+                        ("profit_rate", "Coupon"),
+                        ("bid_price", "Bid"),
+                        ("ask_price", "Ask"),
+                        ("ytm", "YTM %"),
+                        ("zakat_adjusted_ytm", "Zakat Adj."),
+                        ("maturity", "Maturity"),
+                        ("ccy", "CCY"),
+                        ("sp_rating", "S&P"),
+                        ("country_risk", "Country"),
+                        ("sector", "Sector"),
+                        ("sukuk_type_detected", "Type"),
+                        ("zakat_rate", "Zakat %"),
+                        ("credit_risk_score", "Credit"),
+                        ("risk_adjusted_metric", "Risk Adj."),
+                    ] %}
+                    {% for col_key, col_label in cols %}
+                    <th class="px-3 py-2 text-left whitespace-nowrap cursor-pointer hover:text-brand-700"
+                        hx-get="/htmx/table?sort_by={{ col_key }}&sort_dir={{ next_dir if sort_by == col_key else 'DESC' }}"
+                        hx-target="#table-body" hx-swap="innerHTML"
+                        {% if sort_by == col_key %}data-sort-active="true"{% endif %}>
+                        {{ col_label }}
+                        {% if sort_by == col_key %}
+                            {{ "▲" if sort_dir == "ASC" else "▼" }}
+                        {% endif %}
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody id="table-body" class="divide-y divide-gray-100">
+                {% include "_table_rows.html" %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
