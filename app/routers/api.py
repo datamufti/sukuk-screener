@@ -23,6 +23,33 @@ def _db(request: Request):
     return request.app.state.db
 
 
+def _build_api_filters(
+    country: str | None,
+    sector: str | None,
+    sukuk_type: str | None,
+    ccy: str | None,
+    profit_type: str | None,
+    ytm_min: str | None,
+    ytm_max: str | None,
+    search: str | None,
+) -> dict:
+    """Build a filters dict, ignoring empty strings."""
+    filters = {}
+    for key, val in [
+        ("country", country), ("sector", sector), ("sukuk_type", sukuk_type),
+        ("ccy", ccy), ("profit_type", profit_type), ("search", search),
+    ]:
+        if val and val.strip():
+            filters[key] = val.strip()
+    for key, val in [("ytm_min", ytm_min), ("ytm_max", ytm_max)]:
+        if val and val.strip():
+            try:
+                filters[key] = float(val.strip())
+            except ValueError:
+                pass
+    return filters
+
+
 @router.get("/sukuk")
 def list_sukuk(
     request: Request,
@@ -33,29 +60,16 @@ def list_sukuk(
     sukuk_type: str | None = Query(None),
     ccy: str | None = Query(None),
     profit_type: str | None = Query(None),
-    ytm_min: float | None = Query(None),
-    ytm_max: float | None = Query(None),
+    ytm_min: str | None = Query(None),
+    ytm_max: str | None = Query(None),
     search: str | None = Query(None),
     document_date: date | None = Query(None),
 ):
     """Return filtered sukuk list as JSON."""
-    filters = {}
-    if country:
-        filters["country"] = country
-    if sector:
-        filters["sector"] = sector
-    if sukuk_type:
-        filters["sukuk_type"] = sukuk_type
-    if ccy:
-        filters["ccy"] = ccy
-    if profit_type:
-        filters["profit_type"] = profit_type
-    if ytm_min is not None:
-        filters["ytm_min"] = ytm_min
-    if ytm_max is not None:
-        filters["ytm_max"] = ytm_max
-    if search:
-        filters["search"] = search
+    filters = _build_api_filters(
+        country, sector, sukuk_type, ccy, profit_type,
+        ytm_min, ytm_max, search,
+    )
 
     conn = _db(request)
     rows = get_sukuk_list(conn, document_date=document_date,
