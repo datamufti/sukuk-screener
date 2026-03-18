@@ -1,4 +1,5 @@
 """Database operations: upsert sukuk data, query for UI."""
+import json
 import logging
 from datetime import date, datetime, timezone
 from typing import Any
@@ -320,3 +321,61 @@ def get_ingestion_log(conn: duckdb.DuckDBPyConnection) -> list[dict]:
     """)
     columns = [desc[0] for desc in result.description]
     return [dict(zip(columns, row)) for row in result.fetchall()]
+
+
+# ---------------------------------------------------------------------------
+# Screener Presets
+# ---------------------------------------------------------------------------
+
+def list_presets(conn: duckdb.DuckDBPyConnection) -> list[dict]:
+    """List all saved screener presets."""
+    result = conn.execute(
+        "SELECT id, name, filters_json, created_at, updated_at "
+        "FROM screener_presets ORDER BY created_at DESC"
+    )
+    columns = [desc[0] for desc in result.description]
+    presets = []
+    for row in result.fetchall():
+        p = dict(zip(columns, row))
+        try:
+            p["filters"] = json.loads(p["filters_json"]) if p["filters_json"] else {}
+        except (json.JSONDecodeError, TypeError):
+            p["filters"] = {}
+        presets.append(p)
+    return presets
+
+
+def create_preset(
+    conn: duckdb.DuckDBPyConnection, name: str, filters_json: str
+) -> dict:
+    """Create a new screener preset. Returns the created preset."""
+    conn.execute(
+        "INSERT INTO screener_presets (name, filters_json) VALUES (?, ?)",
+        [name, filters_json],
+    )
+    result = conn.execute(
+        "SELECT id, name, filters_json, created_at, updated_at "
+        "FROM screener_presets WHERE name = ? ORDER BY created_at DESC LIMIT 1",
+        [name],
+    )
+    columns = [desc[0] for desc in result.description]
+    row = result.fetchone()
+    if row:
+        p = dict(zip(columns, row))
+        try:
+            p["filters"] = json.loads(p["filters_json"]) if p["filters_json"] else {}
+        except (json.JSONDecodeError, TypeError):
+            p["filters"] = {}
+        return p
+    return {"id": None, "name": name, "filters": {}}
+
+
+def delete_preset(conn: duckdb.DuckDBPyConnection, preset_id: int) -> bool:
+    """Delete a screener preset by ID. Returns True if deleted."""
+    result = conn.execute(
+        "SELECT COUNT(*) FROM screener_presets WHERE id = ?", [preset_id]
+    ).fetchone()
+    if not result or result[0] == 0:
+        return False
+    conn.execute("DELETE FROM screener_presets WHERE id = ?", [preset_id])
+    return True

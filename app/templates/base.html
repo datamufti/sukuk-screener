@@ -4,12 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Sukuk Screener{% endblock %}</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <!-- Tailwind via CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
     tailwind.config = {
         theme: {
             extend: {
+                fontFamily: {
+                    sans: ['Inter', 'system-ui', 'sans-serif'],
+                    mono: ['JetBrains Mono', 'monospace'],
+                },
                 colors: {
                     brand: { 50:'#f0fdf4', 100:'#dcfce7', 200:'#bbf7d0',
                              500:'#22c55e', 600:'#16a34a', 700:'#15803d',
@@ -22,12 +28,21 @@
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
     <style>
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .font-mono, .tabular-nums, td.font-mono { font-family: 'JetBrains Mono', monospace; }
         .htmx-indicator { display:none; }
         .htmx-request .htmx-indicator { display:inline-block; }
         .htmx-request.htmx-indicator { display:inline-block; }
         [data-sort-active="true"] { font-weight: 700; text-decoration: underline; }
         .fade-in { animation: fadeIn 0.2s ease-in; }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        /* Loading overlay for HTMX requests */
+        .htmx-request #table-loading { display: flex !important; }
+        /* Toast animation */
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+        .toast-enter { animation: slideIn 0.3s ease-out; }
+        .toast-exit { animation: slideOut 0.3s ease-in forwards; }
     </style>
     {% block head %}{% endblock %}
 </head>
@@ -61,8 +76,27 @@
     </main>
 
     <footer class="text-center text-xs text-gray-400 py-4">
-        Sukuk Screener v0.1 · Data from Emirates Islamic · Zakat per AAOIFI guidelines
+        Sukuk Screener v0.2 · Data from Emirates Islamic · Zakat per AAOIFI guidelines
     </footer>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+
+    <script>
+    function showToast(message, type) {
+        type = type || 'success';
+        var container = document.getElementById('toast-container');
+        var toast = document.createElement('div');
+        var colors = type === 'success' ? 'bg-brand-600 text-white' : (type === 'error' ? 'bg-red-600 text-white' : 'bg-amber-500 text-white');
+        toast.className = 'px-4 py-2 rounded shadow-lg text-sm toast-enter ' + colors;
+        toast.textContent = message;
+        container.appendChild(toast);
+        setTimeout(function() {
+            toast.className = toast.className.replace('toast-enter', 'toast-exit');
+            setTimeout(function() { toast.remove(); }, 300);
+        }, 3000);
+    }
+    </script>
 
     {% block scripts %}{% endblock %}
 </body>

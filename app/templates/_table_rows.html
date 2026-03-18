@@ -1,18 +1,22 @@
 {% for row in rows %}
-<tr class="hover:bg-gray-50 transition-colors">
+<tr class="hover:bg-gray-50 transition-colors {{ 'bg-gray-50/50' if loop.index is even else '' }}">
+    <td class="px-3 py-2 text-center">
+        <input type="checkbox" class="compare-cb rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+               value="{{ row.isin }}" onchange="toggleCompare('{{ row.isin }}', this)">
+    </td>
     <td class="px-3 py-2 font-mono text-xs">
         <a href="/sukuk/{{ row.isin }}" class="text-brand-700 hover:underline">{{ row.isin }}</a>
     </td>
     <td class="px-3 py-2 max-w-[200px] truncate" title="{{ row.issuer }}">{{ row.issuer or "—" }}</td>
-    <td class="px-3 py-2 text-right tabular-nums">{{ "%.3f"|format(row.profit_rate) if row.profit_rate is not none else "—" }}</td>
-    <td class="px-3 py-2 text-right tabular-nums">{{ "%.2f"|format(row.bid_price) if row.bid_price is not none else "—" }}</td>
-    <td class="px-3 py-2 text-right tabular-nums">{{ "%.2f"|format(row.ask_price) if row.ask_price is not none else "—" }}</td>
-    <td class="px-3 py-2 text-right tabular-nums font-semibold
+    <td class="px-3 py-2 text-right font-mono tabular-nums">{{ "%.3f"|format(row.profit_rate) if row.profit_rate is not none else "—" }}</td>
+    <td class="px-3 py-2 text-right font-mono tabular-nums">{{ "%.2f"|format(row.bid_price) if row.bid_price is not none else "—" }}</td>
+    <td class="px-3 py-2 text-right font-mono tabular-nums">{{ "%.2f"|format(row.ask_price) if row.ask_price is not none else "—" }}</td>
+    <td class="px-3 py-2 text-right font-mono tabular-nums font-semibold
         {% if row.ytm is not none and row.ytm >= 6 %}text-green-700{% elif row.ytm is not none and row.ytm < 3 %}text-red-600{% endif %}">
         {{ "%.2f"|format(row.ytm) if row.ytm is not none else "—" }}
     </td>
-    <td class="px-3 py-2 text-right tabular-nums">{{ "%.2f"|format(row.zakat_adjusted_ytm) if row.zakat_adjusted_ytm is not none else "—" }}</td>
-    <td class="px-3 py-2 whitespace-nowrap">{{ row.maturity if row.maturity else "Perp" }}</td>
+    <td class="px-3 py-2 text-right font-mono tabular-nums">{{ "%.2f"|format(row.zakat_adjusted_ytm) if row.zakat_adjusted_ytm is not none else "—" }}</td>
+    <td class="px-3 py-2 whitespace-nowrap font-mono">{{ row.maturity if row.maturity else "Perp" }}</td>
     <td class="px-3 py-2">{{ row.ccy or "—" }}</td>
     <td class="px-3 py-2">{{ row.sp_rating or "—" }}</td>
     <td class="px-3 py-2">{{ row.country_risk or "—" }}</td>
@@ -30,13 +34,13 @@
         </span>
         {% else %}—{% endif %}
     </td>
-    <td class="px-3 py-2 text-right tabular-nums">{{ "%.2f"|format(row.zakat_rate * 100) if row.zakat_rate is not none else "—" }}</td>
-    <td class="px-3 py-2 text-right tabular-nums">{{ "%.1f"|format(row.credit_risk_score) if row.credit_risk_score is not none else "—" }}</td>
-    <td class="px-3 py-2 text-right tabular-nums">{{ "%.2f"|format(row.risk_adjusted_metric) if row.risk_adjusted_metric is not none else "—" }}</td>
+    <td class="px-3 py-2 text-right font-mono tabular-nums">{{ "%.2f"|format(row.zakat_rate * 100) if row.zakat_rate is not none else "—" }}</td>
+    <td class="px-3 py-2 text-right font-mono tabular-nums">{{ "%.1f"|format(row.credit_risk_score) if row.credit_risk_score is not none else "—" }}</td>
+    <td class="px-3 py-2 text-right font-mono tabular-nums">{{ "%.2f"|format(row.risk_adjusted_metric) if row.risk_adjusted_metric is not none else "—" }}</td>
 </tr>
 {% else %}
 <tr>
-    <td colspan="16" class="px-6 py-12 text-center text-gray-400">
+    <td colspan="17" class="px-6 py-12 text-center text-gray-400">
         No sukuk found. Try adjusting your filters or
         <button hx-post="/api/ingest" hx-swap="none"
                 onclick="setTimeout(()=>location.reload(), 5000)"
@@ -44,3 +48,8 @@
     </td>
 </tr>
 {% endfor %}
+
+<!-- OOB result count update -->
+<span id="result-count" hx-swap-oob="innerHTML">
+    Showing <span class="font-semibold">{{ count }}</span> of <span class="font-semibold">{{ total_count }}</span> sukuk
+</span>

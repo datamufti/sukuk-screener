@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block title %}Compare Sukuk{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <a href="/" class="text-sm text-brand-700 hover:underline">← Back to Screener</a>
+            <h1 class="text-xl font-semibold mt-1">Compare Sukuk</h1>
+        </div>
+        {% if sukuk_list %}
+        <span class="text-sm text-gray-500">{{ sukuk_list | length }} sukuk compared</span>
+        {% endif %}
+    </div>
+
+    {% if not sukuk_list %}
+    <div class="bg-white rounded-lg shadow p-12 text-center text-gray-400">
+        <p class="text-lg">No valid sukuk to compare.</p>
+        <a href="/" class="text-brand-600 hover:underline mt-2 inline-block">Go back and select some</a>
+    </div>
+    {% else %}
+
+    <!-- Comparison table -->
+    <div class="bg-white rounded-lg shadow overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
+                <tr>
+                    <th class="px-4 py-3 text-left">Metric</th>
+                    {% for s in sukuk_list %}
+                    <th class="px-4 py-3 text-center">
+                        <div class="font-mono text-xs">{{ s.isin }}</div>
+                        <div class="text-[10px] font-normal normal-case text-gray-500 truncate max-w-[150px]">{{ s.issuer or '—' }}</div>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% set metrics = [
+                    ("Issuer", "issuer", "text", none),
+                    ("YTM %", "ytm", "float2", "max"),
+                    ("Zakat-Adj YTM %", "zakat_adjusted_ytm", "float2", "max"),
+                    ("Bid", "bid_price", "float2", "max"),
+                    ("Ask", "ask_price", "float2", "min"),
+                    ("Maturity", "maturity", "date", none),
+                    ("Currency", "ccy", "text", none),
+                    ("S&P Rating", "sp_rating", "text", none),
+                    ("Credit Score", "credit_risk_score", "float1", "max"),
+                    ("Country", "country_risk", "text", none),
+                    ("Sector", "sector", "text", none),
+                    ("Sukuk Type", "sukuk_type_detected", "text", none),
+                    ("Zakat Rate %", "zakat_rate", "pct", "min"),
+                    ("Risk-Adj Metric", "risk_adjusted_metric", "float2", "max"),
+                ] %}
+
+                {% for label, key, fmt, best_dir in metrics %}
+                <tr class="{{ 'bg-gray-50/50' if loop.index is even else '' }}">
+                    <td class="px-4 py-2 text-gray-600 font-medium whitespace-nowrap">{{ label }}</td>
+                    {% set ns = namespace(best_val=none) %}
+                    {% if best_dir %}
+                        {% for s in sukuk_list %}
+                            {% set val = s.get(key) %}
+                            {% if val is not none %}
+                                {% if ns.best_val is none %}
+                                    {% set ns.best_val = val %}
+                                {% elif best_dir == "max" and val > ns.best_val %}
+                                    {% set ns.best_val = val %}
+                                {% elif best_dir == "min" and val < ns.best_val %}
+                                    {% set ns.best_val = val %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    {% for s in sukuk_list %}
+                        {% set val = s.get(key) %}
+                        {% set is_best = (best_dir and val is not none and ns.best_val is not none and val == ns.best_val and sukuk_list|length > 1) %}
+                        <td class="px-4 py-2 text-center font-mono tabular-nums {{ 'bg-brand-50 text-brand-800 font-semibold' if is_best else '' }}">
+                            {% if val is none %}—
+                            {% elif fmt == "float2" %}{{ "%.2f"|format(val) }}
+                            {% elif fmt == "float1" %}{{ "%.1f"|format(val) }}
+                            {% elif fmt == "pct" %}{{ "%.2f"|format(val * 100) }}
+                            {% elif fmt == "date" %}{{ val }}
+                            {% else %}{{ val }}
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Diversification Analysis -->
+    <div class="bg-white rounded-lg shadow p-6 space-y-5">
+        <div class="flex items-center gap-2">
+            <h2 class="text-lg font-semibold">Diversification Analysis</h2>
+            {% if diversification.overall == 'good' %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Well Diversified</span>
+            {% elif diversification.overall == 'warning' %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">Concentration Warning</span>
+            {% else %}
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Moderate</span>
+            {% endif %}
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <!-- Country concentration -->
+            <div>
+                <h3 class="text-sm font-medium text-gray-700 mb-2">Country Concentration</h3>
+                {% for country, pct in diversification.country.items() %}
+                <div class="mb-1.5">
+                    <div class="flex justify-between text-xs mb-0.5">
+                        <span class="flex items-center gap-1">
+                            {{ country }}
+                            {% if pct > 50 %}
+                            <span class="inline-block w-2 h-2 rounded-full bg-amber-400" title="High concentration"></span>
+                            {% endif %}
+                        </span>
+                        <span class="font-mono">{{ pct }}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="h-2 rounded-full {{ 'bg-amber-400' if pct > 50 else ('bg-brand-500' if pct <= 40 else 'bg-blue-400') }}"
+                             style="width: {{ pct }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Sector concentration -->
+            <div>
+                <h3 class="text-sm font-medium text-gray-700 mb-2">Sector Concentration</h3>
+                {% for sector, pct in diversification.sector.items() %}
+                <div class="mb-1.5">
+                    <div class="flex justify-between text-xs mb-0.5">
+                        <span class="flex items-center gap-1">
+                            {{ sector }}
+                            {% if pct > 50 %}
+                            <span class="inline-block w-2 h-2 rounded-full bg-amber-400" title="High concentration"></span>
+                            {% endif %}
+                        </span>
+                        <span class="font-mono">{{ pct }}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="h-2 rounded-full {{ 'bg-amber-400' if pct > 50 else ('bg-brand-500' if pct <= 40 else 'bg-blue-400') }}"
+                             style="width: {{ pct }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Rating band concentration -->
+            <div>
+                <h3 class="text-sm font-medium text-gray-700 mb-2">Rating Band Distribution</h3>
+                {% for band, pct in diversification.rating_band.items() %}
+                <div class="mb-1.5">
+                    <div class="flex justify-between text-xs mb-0.5">
+                        <span class="flex items-center gap-1">
+                            {{ band }}
+                            {% if pct > 50 %}
+                            <span class="inline-block w-2 h-2 rounded-full bg-amber-400" title="High concentration"></span>
+                            {% endif %}
+                        </span>
+                        <span class="font-mono">{{ pct }}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="h-2 rounded-full {{ 'bg-amber-400' if pct > 50 else ('bg-brand-500' if pct <= 40 else 'bg-blue-400') }}"
+                             style="width: {{ pct }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if diversification.warnings %}
+        <div class="bg-amber-50 border border-amber-200 rounded p-3 mt-3">
+            <p class="text-sm font-medium text-amber-800 mb-1">Concentration Warnings</p>
+            <ul class="text-xs text-amber-700 space-y-0.5">
+                {% for w in diversification.warnings %}
+                <li>{{ w.category | capitalize }}: <strong>{{ w.value }}</strong> accounts for {{ w.pct }}% of portfolio</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}

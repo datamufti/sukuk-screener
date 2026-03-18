@@ -3,11 +3,29 @@
 
 {% block content %}
 <div class="space-y-4">
+    <!-- Presets bar -->
+    <div id="presets-bar" class="flex flex-wrap items-center gap-2">
+        <span class="text-xs font-medium text-gray-500">Presets:</span>
+        {% for preset in presets %}
+        <span class="inline-flex items-center gap-1 bg-brand-50 border border-brand-200 text-brand-800 px-2 py-0.5 rounded-full text-xs cursor-pointer hover:bg-brand-100 transition"
+              onclick="loadPreset({{ preset.filters | tojson | e }})">
+            {{ preset.name }}
+            <button onclick="event.stopPropagation(); deletePreset({{ preset.id }})"
+                    class="text-brand-400 hover:text-red-500 ml-0.5">&times;</button>
+        </span>
+        {% endfor %}
+        <button onclick="savePresetPrompt()"
+                class="text-xs text-gray-500 hover:text-brand-700 border border-dashed border-gray-300 px-2 py-0.5 rounded-full hover:border-brand-500 transition">
+            + Save Current
+        </button>
+    </div>
+
     <!-- Filters bar -->
-    <form action="/" method="get"
+    <form id="filter-form" action="/" method="get"
           hx-get="/htmx/table" hx-target="#table-body" hx-swap="innerHTML"
           hx-trigger="submit, change delay:200ms, keyup changed delay:300ms from:#search-input"
           hx-push-url="false"
+          hx-indicator="#table-loading"
           class="bg-white rounded-lg shadow p-4">
         <div class="flex flex-wrap gap-3 items-end">
             <!-- Search -->
@@ -76,6 +94,29 @@
                        class="w-20 border border-gray-300 rounded px-2 py-1.5 text-sm">
             </div>
 
+            <!-- Maturity date range -->
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Maturity After</label>
+                <input type="date" name="maturity_after"
+                       value="{{ filters.get('maturity_after', '') }}"
+                       class="border border-gray-300 rounded px-2 py-1.5 text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Maturity Before</label>
+                <input type="date" name="maturity_before"
+                       value="{{ filters.get('maturity_before', '') }}"
+                       class="border border-gray-300 rounded px-2 py-1.5 text-sm">
+            </div>
+
+            <!-- Min credit rating -->
+            <div>
+                <label class="block text-xs font-medium text-gray-500 mb-1">Min Rating</label>
+                <input type="number" name="rating_min" step="1" min="0" max="21"
+                       value="{{ filters.get('rating_min', '') }}"
+                       placeholder="0-21"
+                       class="w-20 border border-gray-300 rounded px-2 py-1.5 text-sm">
+            </div>
+
             <!-- Hidden sort state -->
             <input type="hidden" name="sort_by" value="{{ sort_by }}">
             <input type="hidden" name="sort_dir" value="{{ sort_dir }}">
@@ -85,19 +126,40 @@
                 Filter
             </button>
             <a href="/" class="text-sm text-gray-500 hover:text-gray-700 underline">Reset</a>
+            <a href="/api/export/csv?{{ request.query_params }}"
+               class="bg-gray-100 text-gray-700 px-3 py-1.5 rounded text-sm hover:bg-gray-200 border border-gray-300 transition"
+               onclick="showToast('CSV export started')">
+                Export CSV
+            </a>
         </div>
     </form>
 
     <!-- Count -->
     <div class="flex items-center justify-between">
-        <p class="text-sm text-gray-600"><span class="font-semibold">{{ count }}</span> sukuk</p>
+        <p id="result-count" class="text-sm text-gray-600">
+            Showing <span class="font-semibold">{{ count }}</span> of <span class="font-semibold">{{ total_count }}</span> sukuk
+        </p>
     </div>
 
     <!-- Table -->
-    <div class="bg-white rounded-lg shadow overflow-x-auto">
+    <div class="bg-white rounded-lg shadow overflow-x-auto relative">
+        <!-- Loading overlay -->
+        <div id="table-loading" class="hidden absolute inset-0 bg-white/60 z-10 items-center justify-center">
+            <div class="flex items-center gap-2 text-brand-700 text-sm">
+                <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                Loading...
+            </div>
+        </div>
+
         <table class="min-w-full text-sm">
             <thead class="bg-gray-100 text-gray-600 uppercase text-xs">
                 <tr>
+                    <th class="px-3 py-2 text-center w-10">
+                        <span class="sr-only">Select</span>
+                    </th>
                     {% set cols = [
                         ("isin", "ISIN"),
                         ("issuer", "Issuer"),
@@ -120,6 +182,7 @@
                     <th class="px-3 py-2 text-left whitespace-nowrap cursor-pointer hover:text-brand-700"
                         hx-get="/htmx/table?sort_by={{ col_key }}&sort_dir={{ next_dir if sort_by == col_key else 'DESC' }}"
                         hx-target="#table-body" hx-swap="innerHTML"
+                        hx-indicator="#table-loading"
                         {% if sort_by == col_key %}data-sort-active="true"{% endif %}>
                         {{ col_label }}
                         {% if sort_by == col_key %}
@@ -135,4 +198,137 @@
         </table>
     </div>
 </div>
+
+<!-- Comparison tray (sticky bottom bar) -->
+<div id="compare-tray" class="fixed bottom-0 left-0 right-0 bg-brand-800 text-white shadow-lg transform translate-y-full transition-transform duration-300 z-40">
+    <div class="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <span id="compare-count" class="text-sm font-medium">0 sukuk selected</span>
+            <span class="text-xs text-brand-200">(max 5)</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="clearCompare()" class="text-sm text-brand-200 hover:text-white underline">Clear</button>
+            <button onclick="goCompare()" class="bg-white text-brand-800 px-4 py-1.5 rounded text-sm font-medium hover:bg-brand-50 transition">
+                Compare
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Comparison state
+var selectedISINs = [];
+var MAX_COMPARE = 5;
+
+function toggleCompare(isin, checkbox) {
+    if (checkbox.checked) {
+        if (selectedISINs.length >= MAX_COMPARE) {
+            checkbox.checked = false;
+            showToast('Maximum ' + MAX_COMPARE + ' sukuk can be compared', 'warning');
+            return;
+        }
+        if (selectedISINs.indexOf(isin) === -1) {
+            selectedISINs.push(isin);
+        }
+    } else {
+        selectedISINs = selectedISINs.filter(function(i) { return i !== isin; });
+    }
+    updateCompareUI();
+}
+
+function updateCompareUI() {
+    var tray = document.getElementById('compare-tray');
+    var countEl = document.getElementById('compare-count');
+    if (selectedISINs.length > 0) {
+        tray.classList.remove('translate-y-full');
+        countEl.textContent = selectedISINs.length + ' sukuk selected';
+    } else {
+        tray.classList.add('translate-y-full');
+    }
+    // Update checkboxes state
+    document.querySelectorAll('.compare-cb').forEach(function(cb) {
+        if (selectedISINs.indexOf(cb.value) !== -1) {
+            cb.checked = true;
+        }
+    });
+}
+
+function clearCompare() {
+    selectedISINs = [];
+    document.querySelectorAll('.compare-cb').forEach(function(cb) { cb.checked = false; });
+    updateCompareUI();
+}
+
+function goCompare() {
+    if (selectedISINs.length === 0) return;
+    window.location.href = '/compare?isins=' + selectedISINs.join(',');
+}
+
+// Re-apply checkbox state after HTMX partial swap
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target && evt.detail.target.id === 'table-body') {
+        updateCompareUI();
+    }
+});
+
+// Presets
+function savePresetPrompt() {
+    var name = prompt('Enter preset name:');
+    if (!name || !name.trim()) return;
+    var form = document.getElementById('filter-form');
+    var formData = new FormData(form);
+    var filters = {};
+    formData.forEach(function(value, key) {
+        if (value && key !== 'sort_by' && key !== 'sort_dir') {
+            filters[key] = value;
+        }
+    });
+    var params = new URLSearchParams();
+    params.set('name', name.trim());
+    params.set('filters', JSON.stringify(filters));
+    fetch('/api/presets?' + params.toString(), { method: 'POST' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.error) {
+                showToast(data.error, 'error');
+            } else {
+                showToast('Preset "' + name + '" saved');
+                location.reload();
+            }
+        });
+}
+
+function deletePreset(id) {
+    if (!confirm('Delete this preset?')) return;
+    fetch('/api/presets/' + id, { method: 'DELETE' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.deleted) {
+                showToast('Preset deleted');
+                location.reload();
+            }
+        });
+}
+
+function loadPreset(filters) {
+    var form = document.getElementById('filter-form');
+    // Reset all fields first
+    form.querySelectorAll('input[type="text"], input[type="number"], input[type="date"]').forEach(function(el) {
+        el.value = '';
+    });
+    form.querySelectorAll('select').forEach(function(el) {
+        el.value = '';
+    });
+    // Set values from preset
+    for (var key in filters) {
+        var el = form.querySelector('[name="' + key + '"]');
+        if (el) el.value = filters[key];
+    }
+    // Trigger HTMX update
+    htmx.trigger(form, 'submit');
+    showToast('Preset loaded');
+}
+</script>
 {% endblock %}
