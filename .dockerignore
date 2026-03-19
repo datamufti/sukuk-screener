@@ -7,7 +7,8 @@ data/
 docs/
 tests/
 *.md
-*.sh
+run.sh
+deploy.sh
 Caddyfile
 docker-compose*.yml
 .dockerignore
