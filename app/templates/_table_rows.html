@@ -53,3 +53,8 @@
 <span id="result-count" hx-swap-oob="innerHTML">
     Showing <span class="font-semibold">{{ count }}</span> of <span class="font-semibold">{{ total_count }}</span> sukuk
 </span>
+
+<!-- OOB thead update so sort arrows reflect current state -->
+<thead id="table-head" hx-swap-oob="innerHTML">
+    {% include "_table_head.html" %}
+</thead>

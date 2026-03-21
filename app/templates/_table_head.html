@@ -1,0 +1,35 @@
+<tr>
+    <th class="px-3 py-2 text-center w-10">
+        <span class="sr-only">Select</span>
+    </th>
+    {% set cols = [
+        ("isin", "ISIN"),
+        ("issuer", "Issuer"),
+        ("profit_rate", "Coupon"),
+        ("bid_price", "Bid"),
+        ("ask_price", "Ask"),
+        ("ytm", "YTM %"),
+        ("zakat_adjusted_ytm", "Zakat Adj."),
+        ("maturity", "Maturity"),
+        ("ccy", "CCY"),
+        ("sp_rating", "S&P"),
+        ("country_risk", "Country"),
+        ("sector", "Sector"),
+        ("sukuk_type_detected", "Type"),
+        ("zakat_rate", "Zakat %"),
+        ("credit_risk_score", "Credit"),
+        ("risk_adjusted_metric", "Risk Adj."),
+    ] %}
+    {% for col_key, col_label in cols %}
+    {% set this_dir = next_dir if sort_by == col_key else "DESC" %}
+    <th class="px-3 py-2 text-left whitespace-nowrap cursor-pointer hover:text-brand-700 select-none"
+    hx-get="/htmx/table"
+    hx-vals='{"sort_by": "{{ col_key }}", "sort_dir": "{{ this_dir }}"}'
+    hx-include="#filter-form"
+    hx-target="#table-body" hx-swap="innerHTML"
+    hx-indicator="#table-loading"
+    {% if sort_by == col_key %}data-sort-active="true"{% endif %}
+    >
+
+    {% endfor %}
+</tr>

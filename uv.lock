@@ -1048,7 +1048,7 @@ wheels = [
 
 [[package]]
 name = "sukuk-screener"
-version = "0.1.0"
+version = "0.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "apscheduler" },
@@ -1058,11 +1058,15 @@ dependencies = [
     { name = "jinja2" },
     { name = "pandas" },
     { name = "pdfplumber" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
     { name = "python-multipart" },
     { name = "pytz" },
     { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
 ]
 
 [package.metadata]
@@ -1074,11 +1078,15 @@ requires-dist = [
     { name = "jinja2", specifier = "==3.1.5" },
     { name = "pandas", specifier = "==2.2.3" },
     { name = "pdfplumber", specifier = "==0.11.4" },
-    { name = "pytest", specifier = "==8.3.4" },
-    { name = "pytest-asyncio", specifier = "==0.25.0" },
     { name = "python-multipart", specifier = "==0.0.20" },
     { name = "pytz", specifier = "==2024.2" },
     { name = "uvicorn", extras = ["standard"], specifier = "==0.34.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = "==8.3.4" },
+    { name = "pytest-asyncio", specifier = "==0.25.0" },
 ]
 
 [[package]]

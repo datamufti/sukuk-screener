@@ -1,6 +1,6 @@
 [project]
 name = "sukuk-screener"
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi==0.115.6",
@@ -13,6 +13,10 @@ dependencies = [
     "apscheduler==3.11.0",
     "pytz==2024.2",
     "pandas==2.2.3",
+]
+
+[dependency-groups]
+dev = [
     "pytest==8.3.4",
     "pytest-asyncio==0.25.0",
 ]
