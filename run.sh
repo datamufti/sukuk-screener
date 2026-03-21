@@ -39,26 +39,15 @@ done
 mkdir -p "$DATA_DIR"
 export DATA_DIR
 
-# Check Python version
-PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "0.0")
-REQUIRED="3.11"
-if [[ "$(printf '%s\n' "$REQUIRED" "$PYTHON_VERSION" | sort -V | head -n1)" != "$REQUIRED" ]]; then
-    echo "Error: Python >= $REQUIRED is required (found $PYTHON_VERSION)"
+# Check uv is available
+if ! command -v uv &>/dev/null; then
+    echo "Error: 'uv' is not installed. Install it with: curl -Ls https://astral.sh/uv/install.sh | sh"
     exit 1
 fi
 
-# Create venv if it doesn't exist
-if [[ ! -d ".venv" ]]; then
-    echo "Creating virtual environment..."
-    python3 -m venv .venv
-fi
+echo "Syncing dependencies with uv..."
+uv sync --frozen
 
-echo "Activating virtual environment..."
-# shellcheck disable=SC1091
-source .venv/bin/activate
-
-echo "Installing / upgrading dependencies..."
-pip install -q -r requirements.txt
 
 echo ""
 echo "Starting Sukuk Screener"
@@ -68,7 +57,7 @@ echo "  Data dir: $DATA_DIR"
 echo "  URL:      http://${HOST}:${PORT}"
 echo ""
 
-exec uvicorn app.main:app \
+exec uv run uvicorn app.main:app \
     --host "$HOST" \
     --port "$PORT" \
     --workers "$WORKERS" \
